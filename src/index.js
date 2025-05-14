@@ -20,12 +20,8 @@ export default {
         extensionAPI.settings.panel.create(config);
 
         extensionAPI.ui.commandPalette.addCommand({
-            label: "Paste DOI from clipboard",
-            callback: () => pasteDOI()
-        });
-        extensionAPI.ui.commandPalette.addCommand({
-            label: "Check page for DOIs",
-            callback: () => checkDOI()
+            label: "Paste PDF from clipboard",
+            callback: () => retrieveAcPDF(true, null)
         });
 
         var divParent = document.createElement('div'); // dropzone
@@ -49,76 +45,20 @@ export default {
                 [...event.dataTransfer.items].forEach(async (item, i) => {
                     if (item.kind === "file" && item.type === "application/pdf") {
                         const file = item.getAsFile();
-                        let text = await extractPDFTextFromFile(file);
-                        let dois = extractUniqueDOIs(text);
-
-                        var doiUrl, articleData;
-                        if (dois.length == 0) { // no dois found
-                            prompt("There were no DOIs found in that PDF.", 3000, 1);
-                        } else if (dois.length == 1) { // hopefully this is the article doi
-                            doiUrl = "https://api.crossref.org/works/" + dois[0];
-                        } else { // more than one match, so will need to present import options
-                            doiUrl = "https://api.crossref.org/works/?filter=";
-                            for (var i = 0; i < dois.length; i++) {
-                                doiUrl += "doi:" + dois[i] + ",";
-                            }
-                        }
-
-                        await fetch(doiUrl)
-                            .then(response => {
-                                if (response.status === 404) {
-                                    throw new Error("DOI not found (404)");
-                                }
-                                return response.json();
-                            })
-                            .then(async data => {
-                                if (data.status === "ok") {
-                                    if (data.message.hasOwnProperty("items")) { // we must have searched on multiple DOIs
-                                        var promptString = "Which of these articles is correct?";
-                                        let selectString = "<select><option value=\"\">Select</option>";
-                                        for (var i = 0; i < data.message.items.length; i++) {
-                                            selectString += "<option value=\"" + i + "\">" + data.message.items[i].title[0] + "</option>";
-                                        }
-                                        selectString += "</select>";
-
-                                        var searchQuery = await prompt(promptString, null, 2, selectString);
-
-                                        if (searchQuery != undefined && searchQuery != "cancelled") {
-                                            articleData = data.message.items[searchQuery];
-                                        } else {
-                                            await prompt("You cancelled your import", 3000, 1, null);
-                                            return;
-                                        }
-                                    } else { // this is the right metadata
-                                        console.info(data.message.title[0]);
-                                        articleData = data.message;
-                                    }
-                                } else {
-                                    throw new Error("Invalid response from CrossRef");
-                                }
-                                console.info(articleData);
-                            })
-                            .catch(err => {
-                                console.error(err);
-                                prompt("Failed to retrieve item metadata from CrossRef.", 3000, 1);
-                            });
-                        /*
-                        let url = await window.roamAlphaAPI.file.upload({ file: file });
-                            console.info(url);
-                        */
+                        return await retrieveAcPDF(false, file);
                     } else {
                         prompt("This extension only allows PDF file upload.", 3000, 1);
+                        return;
                     }
                 });
             } else {
                 [...event.dataTransfer.files].forEach(async (file, i) => {
                     if (file.kind === "file" && file.type === "application/pdf") {
                         const file = file.getAsFile();
-                        // console.log(`… file[${i}].name = ${file.name}`);
-                        await extractPDFTextFromFile(file);
-
-                        let url = await window.roamAlphaAPI.file.upload({ file: file });
-                        console.info(url);
+                        return await retrieveAcPDF(false, file);
+                    } else {
+                        prompt("This extension only allows PDF file upload.", 3000, 1);
+                        return;
                     }
                 });
             }
@@ -127,6 +67,87 @@ export default {
         divParent.addEventListener('dragleave', () => {
             divParent.classList.remove('hoverOver');
         });
+
+        async function retrieveAcPDF(pasted, file) {
+            if (pasted) { // pasted file, retrieve from clipboard
+                /*
+                const clipboardItems = await navigator.clipboard.read();
+                console.info(clipboardItems);
+                for (const clipboardItem of clipboardItems) {
+                    for (const type of clipboardItem.types) {
+                        const blob = await clipboardItem.getType(type);
+                        // we can now use blob here
+                    }
+                }
+                */
+            }
+
+            let text = await extractPDFTextFromFile(file);
+            let dois = await extractUniqueDOIs(text);
+
+            var doiUrl, articleData;
+            if (dois.length == 0) { // no dois found
+                let manualDOI = await prompt("There were no DOIs found in that PDF. Would you like to add one manually?", null, 3, null);
+                if (manualDOI != undefined && manualDOI != "cancelled") {
+                    doiUrl = "https://api.crossref.org/works/" + manualDOI;
+                } else {
+                    await prompt("Import Cancelled", 3000, 1, null);
+                    return;
+                }
+            } else if (dois.length == 1) { // hopefully this is the article doi
+                doiUrl = "https://api.crossref.org/works/" + dois[0];
+            } else { // more than one match, so will need to present the user some imported options
+                doiUrl = "https://api.crossref.org/works/?filter=";
+                for (var i = 0; i < dois.length; i++) {
+                    doiUrl += "doi:" + dois[i] + ",";
+                }
+            }
+
+            console.info(doiUrl);
+            await fetch(doiUrl)
+                .then(response => {
+                    if (response.status === 404) {
+                        throw new Error("DOI not found (404)");
+                    }
+                    return response.json();
+                })
+                .then(async data => {
+                    if (data.status === "ok") {
+                        if (data.message.hasOwnProperty("items")) { // we must have searched on multiple DOIs
+                            var promptString = "Which of these articles is correct?";
+                            let selectString = "<select><option value=\"\">Select</option>";
+                            for (var i = 0; i < data.message.items.length; i++) {
+                                selectString += "<option value=\"" + i + "\">" + data.message.items[i].title[0] + "</option>";
+                            }
+                            selectString += "</select>";
+
+                            var searchQuery = await prompt(promptString, null, 2, selectString);
+
+                            if (searchQuery != undefined && searchQuery != "cancelled") {
+                                articleData = data.message.items[searchQuery];
+                            } else {
+                                await prompt("Import Cancelled", 3000, 1, null);
+                                return;
+                            }
+                        } else { // this is the right metadata
+                            console.info(data.message.title[0]);
+                            articleData = data.message;
+                        }
+                    } else {
+                        throw new Error("Invalid response from CrossRef");
+                    }
+                    console.info(articleData);
+                })
+                .catch(err => {
+                    console.error(err);
+                    prompt("Failed to retrieve item metadata from CrossRef.", 3000, 1);
+                });
+
+            /*
+            let url = await window.roamAlphaAPI.file.upload({ file: file });
+                console.info(url);
+            */
+        };
     },
     onunload: () => {
         if (document.getElementById("acPdf_dropzone")) {
@@ -136,7 +157,7 @@ export default {
 }
 
 async function prompt(string, duration, type, selectString) {
-    if (type == 1) {
+    if (type == 1) { // announcements
         iziToast.show({
             theme: 'dark',
             message: string,
@@ -148,7 +169,7 @@ async function prompt(string, duration, type, selectString) {
             closeOnEscape: true,
             displayMode: 2
         });
-    } else if (type == 2) {
+    } else if (type == 2) { // select the correct article from list
         return new Promise((resolve) => {
             iziToast.question({
                 theme: 'light',
@@ -159,7 +180,7 @@ async function prompt(string, duration, type, selectString) {
                 timeout: false,
                 close: true,
                 overlay: true,
-                title: "Academic PDF Handling",
+                title: "Academic PDF Import",
                 message: string,
                 position: 'center',
                 onClosed: function () { resolve("cancelled") },
@@ -182,6 +203,55 @@ async function prompt(string, duration, type, selectString) {
                 ]
             });
         })
+    } else if (type == 3) { // see if user wants to add manual DOI
+        return new Promise((resolve) => {
+            iziToast.question({
+                theme: 'light',
+                color: 'black',
+                layout: 2,
+                class: 'acPdf',
+                drag: false,
+                timeout: false,
+                close: false,
+                overlay: true,
+                displayMode: 2,
+                id: "question",
+                title: "Academic PDF Import",
+                message: string,
+                position: "center",
+                onClosed: function () { resolve("cancelled") },
+                inputs: [
+                    [
+                        '<input type="text" placeholder="">',
+                        "keyup",
+                        function (instance, toast, input, e) {
+                            if (e.code === "Enter") {
+                                instance.hide({ transitionOut: "fadeOut" }, toast, "button");
+                                resolve(e.srcElement.value);
+                            }
+                        },
+                        true,
+                    ],
+                ],
+                buttons: [
+                    [
+                        "<button><b>Confirm</b></button>",
+                        async function (instance, toast, button, e, inputs) {
+                            instance.hide({ transitionOut: "fadeOut" }, toast, "button");
+                            resolve(inputs[0].value);
+                        },
+                        false,
+                    ],
+                    [
+                        "<button>Cancel</button>",
+                        async function (instance, toast, button, e) {
+                            instance.hide({ transitionOut: "fadeOut" }, toast, "button");
+                            resolve("cancelled");
+                        },
+                    ],
+                ],
+            });
+        })
     }
 }
 
@@ -195,7 +265,7 @@ async function extractPDFTextFromFile(file) {
     }
 }
 
-function extractUniqueDOIs(text) {
+async function extractUniqueDOIs(text) {
     const doiRegex = /\b(https?:\/\/doi\.org\/|http:\/\/dx\.doi\.org\/|doi\.org\/)?(10\.[0-9]{4,9}\/[\-._;<>\/\w%]+(?:\([\w\s]+\))?)\b/gi;
     const dois = [];
     let match;
