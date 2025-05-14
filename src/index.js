@@ -103,9 +103,8 @@ export default {
                 }
             }
 
-            console.info(doiUrl);
             await fetch(doiUrl)
-                .then(response => {
+                .then(async response => {
                     if (response.status === 404) {
                         throw new Error("DOI not found (404)");
                     }
@@ -122,7 +121,6 @@ export default {
                             selectString += "</select>";
 
                             var searchQuery = await prompt(promptString, null, 2, selectString);
-
                             if (searchQuery != undefined && searchQuery != "cancelled") {
                                 articleData = data.message.items[searchQuery];
                             } else {
@@ -138,9 +136,15 @@ export default {
                     }
                     console.info(articleData);
                 })
-                .catch(err => {
+                .catch(async err => {
                     console.error(err);
-                    prompt("Failed to retrieve item metadata from CrossRef.", 3000, 1);
+                    let errorCheck = await prompt("3 There was an error determining article metadata from CrossRef. Would you like to import the PDF anyway?", null, 4, null);
+                    if (errorCheck) {
+
+                    } else {
+                        await prompt("Import Cancelled", 3000, 1, null);
+                        return;
+                    }
                 });
 
             /*
@@ -247,6 +251,42 @@ async function prompt(string, duration, type, selectString) {
                         async function (instance, toast, button, e) {
                             instance.hide({ transitionOut: "fadeOut" }, toast, "button");
                             resolve("cancelled");
+                        },
+                    ],
+                ],
+            });
+        })
+    } else if (type == 4) { // metadata import from CrossRef failed, see if user wants to import PDF anyway
+        return new Promise((resolve) => {
+            iziToast.question({
+                theme: 'light',
+                color: 'black',
+                layout: 2,
+                class: 'acPdf',
+                drag: false,
+                timeout: false,
+                close: false,
+                overlay: true,
+                displayMode: 2,
+                id: "question",
+                title: "Academic PDF Import",
+                message: string,
+                position: "center",
+                onClosed: function () { resolve(false) },
+                buttons: [
+                    [
+                        "<button><b>Yes</b></button>",
+                        async function (instance, toast, button, e, inputs) {
+                            instance.hide({ transitionOut: "fadeOut" }, toast, "button");
+                            resolve(true);
+                        },
+                        false,
+                    ],
+                    [
+                        "<button>No</button>",
+                        async function (instance, toast, button, e) {
+                            instance.hide({ transitionOut: "fadeOut" }, toast, "button");
+                            resolve(false);
                         },
                     ],
                 ],
