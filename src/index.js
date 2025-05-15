@@ -1,5 +1,6 @@
 import iziToast from "izitoast";
 import { processPDF } from 'pdf-worker-package';
+let hashChange = undefined;
 
 export default {
     onload: ({ extensionAPI }) => {
@@ -151,49 +152,60 @@ export default {
             }
         }
 
-        var divParent = document.createElement('div'); // dropzone
-        divParent.classList.add('acPdf_dropzone');
-        divParent.innerHTML = "";
-        divParent.id = 'acPdf_dropzone';
+        hashChange = async (e) => {
+            sleep(50);
+            addDropzone();
+        };
+        window.addEventListener('hashchange', hashChange);
 
-        if (document.getElementById("acPdf_dropzone")) {
-            document.getElementById("acPdf_dropzone").remove();
-        }
-        let wrapper = document.getElementsByClassName("rm-article-wrapper")[0];
-        wrapper.after(divParent);
-        divParent.addEventListener("dragover", (event) => {
-            event.preventDefault();
-            divParent.classList.add('hoverOver');
-        });
-        divParent.addEventListener("drop", (event) => {
-            divParent.classList.add('hoverOver');
-            event.preventDefault();
-            if (event.dataTransfer.items) {
-                [...event.dataTransfer.items].forEach(async (item, i) => {
-                    if (item.kind === "file" && item.type === "application/pdf") {
-                        const file = item.getAsFile();
-                        return await retrieveAcPDF(false, file);
-                    } else {
-                        prompt("This extension only allows PDF file upload.", 3000, 1);
-                        return;
-                    }
+        addDropzone(); // onload
+        async function addDropzone() {
+            var divParent = document.createElement('div'); // dropzone
+            divParent.classList.add('acPdf_dropzone');
+            divParent.innerHTML = "";
+            divParent.id = 'acPdf_dropzone';
+
+            if (document.getElementById("acPdf_dropzone")) {
+                document.getElementById("acPdf_dropzone").remove();
+            }
+            if (document.getElementsByClassName("rm-article-wrapper") && document.getElementsByClassName("rm-article-wrapper").length > 0) {
+                let wrapper = document.getElementsByClassName("rm-article-wrapper")[0];
+                wrapper.after(divParent);
+                divParent.addEventListener("dragover", (event) => {
+                    event.preventDefault();
+                    divParent.classList.add('hoverOver');
                 });
-            } else {
-                [...event.dataTransfer.files].forEach(async (file, i) => {
-                    if (file.kind === "file" && file.type === "application/pdf") {
-                        const file = file.getAsFile();
-                        return await retrieveAcPDF(false, file);
+                divParent.addEventListener("drop", (event) => {
+                    divParent.classList.add('hoverOver');
+                    event.preventDefault();
+                    if (event.dataTransfer.items) {
+                        [...event.dataTransfer.items].forEach(async (item, i) => {
+                            if (item.kind === "file" && item.type === "application/pdf") {
+                                const file = item.getAsFile();
+                                return await retrieveAcPDF(false, file);
+                            } else {
+                                prompt("This extension only allows PDF file upload.", 3000, 1);
+                                return;
+                            }
+                        });
                     } else {
-                        prompt("This extension only allows PDF file upload.", 3000, 1);
-                        return;
+                        [...event.dataTransfer.files].forEach(async (file, i) => {
+                            if (file.kind === "file" && file.type === "application/pdf") {
+                                const file = file.getAsFile();
+                                return await retrieveAcPDF(false, file);
+                            } else {
+                                prompt("This extension only allows PDF file upload.", 3000, 1);
+                                return;
+                            }
+                        });
                     }
+                    divParent.classList.remove('hoverOver');
+                });
+                divParent.addEventListener('dragleave', () => {
+                    divParent.classList.remove('hoverOver');
                 });
             }
-            divParent.classList.remove('hoverOver');
-        });
-        divParent.addEventListener('dragleave', () => {
-            divParent.classList.remove('hoverOver');
-        });
+        }
 
         async function retrieveAcPDF(pasted, file) {
             if (pasted) { // pasted file, retrieve from clipboard
@@ -442,6 +454,16 @@ export default {
                         let url = await window.roamAlphaAPI.file.upload({ file: file });
                         var newBlock = roamAlphaAPI.util.generateUID();
                         await window.roamAlphaAPI.createBlock({ location: { "parent-uid": newPageUid, order: 99 }, block: { string: url, uid: newBlock } });
+                        await window.roamAlphaAPI.ui.rightSidebar
+                            .addWindow({
+                                window:
+                                    { type: 'outline', 'block-uid': newPageUid }
+                            });
+                        await window.roamAlphaAPI.ui.rightSidebar
+                            .collapseWindow({
+                                window:
+                                    { type: 'outline', 'block-uid': newPageUid }
+                            });
                     } else {
                         throw new Error("Invalid response from CrossRef");
                     }
@@ -462,6 +484,7 @@ export default {
         if (document.getElementById("acPdf_dropzone")) {
             document.getElementById("acPdf_dropzone").remove();
         }
+        window.removeEventListener('hashchange', hashChange);
     }
 }
 
