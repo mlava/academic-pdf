@@ -7,22 +7,149 @@ export default {
             tabTitle: "Academic PDF Import",
             settings: [
                 {
-                    id: "doi-format",
-                    name: "Output format",
-                    description: "Retrieve the item\'s name and use for the link",
+                    id: "journalOrder",
+                    name: "Journal reference",
+                    description: "Which position to place the journal reference data",
                     action: {
                         type: "select",
-                        items: ["Unaltered", "Normalised", "Item Name",]
+                        items: ["1", "2", "3", "4", "5", "Hide"],
+                        onChange: (evt) => { setJournalOrder(evt); }
+                    }
+                },
+                {
+                    id: "doiOrder",
+                    name: "DOI",
+                    description: "Which position to place the DOI",
+                    action: {
+                        type: "select",
+                        items: ["1", "2", "3", "4", "5", "Hide"],
+                        onChange: (evt) => { setDOIOrder(evt); }
+                    }
+                },
+                {
+                    id: "authorsOrder",
+                    name: "Authors",
+                    description: "Which position to place the Authors",
+                    action: {
+                        type: "select",
+                        items: ["1", "2", "3", "4", "5", "Hide"],
+                        onChange: (evt) => { setAuthOrder(evt); }
+                    }
+                },
+                {
+                    id: "referencesOrder",
+                    name: "References",
+                    description: "Which position to place the article's references",
+                    action: {
+                        type: "select",
+                        items: ["1", "2", "3", "4", "5", "Hide"],
+                        onChange: (evt) => { setRefsOrder(evt); }
+                    }
+                },
+                {
+                    id: "abstractOrder",
+                    name: "Abstract",
+                    description: "Which position to place the abstract",
+                    action: {
+                        type: "select",
+                        items: ["1", "2", "3", "4", "5", "Hide"],
+                        onChange: (evt) => { setAbstractOrder(evt); }
                     }
                 },
             ]
         };
+
         extensionAPI.settings.panel.create(config);
 
         extensionAPI.ui.commandPalette.addCommand({
             label: "Paste PDF from clipboard",
             callback: () => retrieveAcPDF(true, null)
         });
+
+        // onload
+        var journalOrder, authorsOrder, referencesOrder, doiOrder, abstractOrder;
+        if (extensionAPI.settings.get("journalOrder") != null) {
+            if (extensionAPI.settings.get("journalOrder") == "Hide") {
+                journalOrder = "Hide";
+            } else {
+                journalOrder = parseInt(extensionAPI.settings.get("journalOrder"));
+            }
+        } else {
+            journalOrder = 1;
+        }
+        if (extensionAPI.settings.get("doiOrder") != null) {
+            if (extensionAPI.settings.get("doiOrder") == "Hide") {
+                doiOrder = "Hide";
+            } else {
+                doiOrder = parseInt(extensionAPI.settings.get("doiOrder"));
+            }
+        } else {
+            doiOrder = 2;
+        }
+        if (extensionAPI.settings.get("authorsOrder") != null) {
+            if (extensionAPI.settings.get("authorsOrder") == "Hide") {
+                authorsOrder = "Hide";
+            } else {
+                authorsOrder = parseInt(extensionAPI.settings.get("authorsOrder"));
+            }
+        } else {
+            authorsOrder = 3;
+        }
+        if (extensionAPI.settings.get("referencesOrder") != null) {
+            if (extensionAPI.settings.get("referencesOrder") == "Hide") {
+                referencesOrder = "Hide";
+            } else {
+                referencesOrder = parseInt(extensionAPI.settings.get("referencesOrder"));
+            }
+        } else {
+            referencesOrder = 4;
+        }
+        if (extensionAPI.settings.get("abstractOrder") != null) {
+            if (extensionAPI.settings.get("abstractOrder") == "Hide") {
+                abstractOrder = "Hide";
+            } else {
+                abstractOrder = parseInt(extensionAPI.settings.get("abstractOrder"));
+            }
+        } else {
+            abstractOrder = 5;
+        }
+
+        // onchange
+        async function setJournalOrder(evt) {
+            if (evt == "Hide") {
+                journalOrder = "Hide";
+            } else {
+                journalOrder = parseInt(evt);
+            }
+        }
+        async function setDOIOrder(evt) {
+            if (evt == "Hide") {
+                doiOrder = "Hide";
+            } else {
+                doiOrder = parseInt(evt);
+            }
+        }
+        async function setAuthOrder(evt) {
+            if (evt == "Hide") {
+                authorsOrder = "Hide";
+            } else {
+                authorsOrder = parseInt(evt);
+            }
+        }
+        async function setRefsOrder(evt) {
+            if (evt == "Hide") {
+                referencesOrder = "Hide";
+            } else {
+                referencesOrder = parseInt(evt);
+            }
+        }
+        async function setAbstractOrder(evt) {
+            if (evt == "Hide") {
+                abstractOrder = "Hide";
+            } else {
+                abstractOrder = parseInt(evt);
+            }
+        }
 
         var divParent = document.createElement('div'); // dropzone
         divParent.classList.add('acPdf_dropzone');
@@ -128,17 +255,200 @@ export default {
                                 return;
                             }
                         } else { // this is the right metadata
-                            console.info(data.message.title[0]);
                             articleData = data.message;
                         }
+
+                        var blocks = [];
+                        var children = [];
+                        if (journalOrder != "Hide") {
+                            var journalName, journalVol, journalIssue, pages, year;
+                            if (articleData["container-title"] != null && articleData.hasOwnProperty("container-title")) {
+                                journalName = articleData["container-title"][0];
+                                journalVol = articleData.volume;
+                                journalIssue = articleData.issue;
+                                pages = articleData.page;
+                                year = articleData.published["date-parts"][0][0];
+
+                                var journalString = "[[" + journalName + "]]";
+                                if (year != undefined) {
+                                    journalString += " " + year + "";
+                                }
+                                if (journalVol != undefined) {
+                                    journalString += "; " + journalVol + "";
+                                }
+                                if (journalIssue != undefined) {
+                                    journalString += "(" + journalIssue + ")";
+                                }
+                                if (pages != undefined) {
+                                    journalString += ":" + pages + "";
+                                }
+                                children[journalOrder - 1] = { "text": journalString, };
+                            }
+                        }
+
+                        if (doiOrder != "Hide") {
+                            children[doiOrder - 1] = { "text": "**DOI:** [" + articleData.DOI + "](https://doi.org/" + articleData.DOI + ")", };
+                        }
+
+                        if (authorsOrder != "Hide") {
+                            var authors = articleData.author;
+                            var authorsBlock = [];
+                            for (var i = 0; i < authors.length; i++) {
+                                var authorString = "";
+                                var authorName = authors[i].given + " " + authors[i].family;
+                                var matchingAuthorPages = await window.roamAlphaAPI.q(`
+                                    [:find ?e
+                                        :where [?e :node/title "${authorName}"]]`);
+                                if (matchingAuthorPages != null && matchingAuthorPages.length > 0) {
+                                    // there's a matching author page
+                                    authorString = "[[" + authors[i].given + " " + authors[i].family + "]]";
+                                } else {
+                                    authorString = "" + authors[i].given + " " + authors[i].family + "";
+                                }
+                                authorsBlock.push({ "text": authorString, });
+                            }
+                            children[authorsOrder - 1] = { "text": "**Authors:** (" + authors.length + ")", "children": authorsBlock };
+                        }
+
+                        if (referencesOrder != "Hide") {
+                            var referenceCount = articleData["reference-count"];
+                            var references = articleData.reference;
+                            var referencesBlock = [];
+                            for (var i = 0; i < references.length; i++) {
+                                var refTitle;
+                                if (references[i].hasOwnProperty("article-title")) {
+                                    refTitle = references[i]["article-title"];
+
+                                    var matchingArticlePages = await window.roamAlphaAPI.q(`
+                                    [:find ?e
+                                        :where [?e :node/title "${refTitle}"]]`);
+                                    if (matchingArticlePages != null && matchingArticlePages.length > 0) {
+                                        // there's a matching article page
+                                        refTitle = "[[" + refTitle + "]]";
+                                    } else {
+                                        if (references[i].hasOwnProperty("DOI")) {
+                                            refTitle = "[" + refTitle + "](https://doi.org/" + references[i]["DOI"] + ")";
+                                        }
+                                    }
+                                } else {
+                                    refTitle = "[" + references[i]["DOI"] + "](https://doi.org/" + references[i]["DOI"] + ")";
+                                }
+                                referencesBlock.push({ "text": refTitle });
+                            }
+                            children[referencesOrder - 1] = { "text": "**References:** (" + referenceCount + ")", "children": referencesBlock };
+                        }
+
+                        if (abstractOrder != "Hide") {
+                            if (articleData.hasOwnProperty("abstract") && articleData.abstract != null) {
+                                var abstract = articleData.abstract;
+                                if (abstract != undefined) {
+                                    children[abstractOrder - 1] = { "text": "**Abstract:**", "children": [{ "text": abstract, }], };
+                                }
+                            }
+                        }
+
+                        blocks.push({ "text": articleData.title[0], "children": children });
+
+                        var page, matchingPages;
+                        var newPageUid = roamAlphaAPI.util.generateUID();
+                        page = await window.roamAlphaAPI.q(`
+                                                [:find ?e
+                                                :where [?e :node/title "${articleData.title[0]}"]]`);
+                        if (page.length < 1) { // create new page
+                            await window.roamAlphaAPI.createPage({ page: { title: blocks[0].text.toString(), uid: newPageUid } });
+                            var parentUid = roamAlphaAPI.util.generateUID();
+                            await window.roamAlphaAPI.createBlock({ location: { "parent-uid": newPageUid, order: 0 }, block: { string: "**" + blocks[0].text + "**".toString(), uid: parentUid } });
+                            blocks = blocks[0].children;
+                            await createBlocks(blocks, parentUid);
+                        } else { // there's already a page with that name
+                            matchingPages = await window.roamAlphaAPI.data.pull("[:block/string :block/uid {:block/children ...}]", [":node/title", newPageName]);
+                            newPageUid = matchingPages[":block/uid"];
+                            newPageName1 = newPageName1.split("@")[0];
+                            if (matchingPages.hasOwnProperty(":block/children")) { // already some children here
+                                for (var i = 0; i < matchingPages[":block/children"].length; i++) {
+                                    if (matchingPages[":block/children"][i][":block/string"] == newPageName1) {
+                                        titleUid = matchingPages[":block/children"][i][":block/uid"].toString();
+                                    }
+                                };
+                                for (var i = 0; i < matchingPages[":block/children"][0][":block/children"].length; i++) {
+                                    let blockString = matchingPages[":block/children"][0][":block/children"][i][":block/string"].toString();
+                                    if (blockString.startsWith("**Corpus ID:**")) {
+                                        corpId = matchingPages[":block/children"][0][":block/children"][i][":block/string"].toString();
+                                        corpId = corpId.split("**Corpus ID:**");
+                                        corpId = corpId[1].trim();
+                                    }
+                                };
+                            } else { // no article data on matching page title
+                                await window.roamAlphaAPI.updateBlock(
+                                    { block: { uid: parentUid, string: "[[" + newPageName + "]]".toString(), open: true } });
+                                parentUid = roamAlphaAPI.util.generateUID();
+                                await window.roamAlphaAPI.createBlock({ location: { "parent-uid": newPageUid, order: 0 }, block: { string: "**" + firstBlock + "**".toString(), uid: parentUid } });
+                                blocks = blocks[0].children;
+                                await createBlocks(blocks, parentUid);
+                            }
+
+                            if (corpId != undefined) {
+                                if (corpId != newCorpId) { // same page name but different corpus ID = new article
+                                    newPageName = newPageName + " ~ " + newCorpId;
+                                    newPageUid = roamAlphaAPI.util.generateUID();
+                                    await window.roamAlphaAPI.createPage({ page: { title: newPageName, uid: newPageUid } });
+                                    await window.roamAlphaAPI.updateBlock(
+                                        { block: { uid: parentUid, string: "[[" + newPageName + "]]".toString(), open: true } });
+                                    parentUid = roamAlphaAPI.util.generateUID();
+                                    await window.roamAlphaAPI.createBlock({ location: { "parent-uid": newPageUid, order: 0 }, block: { string: "**" + firstBlock + "**".toString(), uid: parentUid } });
+                                    blocks = blocks[0].children;
+                                    await createBlocks(blocks, parentUid);
+                                } else { // same name, same corpus ID = same article
+                                    var string = "This article is already in your graph. Would you like to update the data?"
+                                    overwrite = await prompt(string, null, 1, null);
+
+                                    if (overwrite) { // overwrite existing data on the article page
+                                        await window.roamAlphaAPI.updateBlock(
+                                            { block: { uid: parentUid, string: "[[" + newPageName + "]]".toString(), open: true } });
+                                        if (titleUid != undefined) {
+                                            parentUid = titleUid;
+                                        }
+                                        // delete current children and replace with new data
+                                        blocks = blocks[0].children;
+                                        var headerString = "**Recommendations:**";
+                                        var longHeaderString = "**Recommendations:** {{Import Recommendations:SmartBlock";
+                                        for (var i = 0; i < matchingPages[":block/children"].length; i++) {
+                                            if (matchingPages[":block/children"][i][":block/uid"] == parentUid) {
+                                                for (var j = 0; j < matchingPages[":block/children"][i][":block/children"].length; j++) {
+                                                    if (matchingPages[":block/children"][i][":block/children"][j][":block/string"].startsWith(headerString)) {
+                                                        if (matchingPages[":block/children"][i][":block/children"][j][":block/string"].startsWith(longHeaderString)) {
+                                                            window.roamAlphaAPI.deleteBlock({ block: { uid: matchingPages[":block/children"][i][":block/children"][j][":block/uid"] } });
+                                                        } else { // we want to keep this block and not put a new Recommendations block and SB button in place
+                                                            for (var k = 0; k < blocks.length; k++) {
+                                                                var blockString = blocks[k].text.toString();
+                                                                if (blockString.startsWith(longHeaderString)) {
+                                                                    blocks.splice(k, 1);
+                                                                }
+                                                            }
+                                                        }
+                                                    } else {
+                                                        window.roamAlphaAPI.deleteBlock({ block: { uid: matchingPages[":block/children"][i][":block/children"][j][":block/uid"] } });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        await createBlocks(blocks, parentUid);
+                                        overwrite = false;
+                                    }
+                                }
+                            }
+                        }
+
+                        let url = await window.roamAlphaAPI.file.upload({ file: file });
+                        var newBlock = roamAlphaAPI.util.generateUID();
+                        await window.roamAlphaAPI.createBlock({ location: { "parent-uid": newPageUid, order: 99 }, block: { string: url, uid: newBlock } });
                     } else {
                         throw new Error("Invalid response from CrossRef");
                     }
-                    console.info(articleData);
                 })
                 .catch(async err => {
                     console.error(err);
-                    let errorCheck = await prompt("3 There was an error determining article metadata from CrossRef. Would you like to import the PDF anyway?", null, 4, null);
+                    let errorCheck = await prompt("There was an error determining article metadata from CrossRef. Would you like to import the PDF anyway?", null, 4, null);
                     if (errorCheck) {
 
                     } else {
@@ -146,11 +456,6 @@ export default {
                         return;
                     }
                 });
-
-            /*
-            let url = await window.roamAlphaAPI.file.upload({ file: file });
-                console.info(url);
-            */
         };
     },
     onunload: () => {
@@ -158,6 +463,11 @@ export default {
             document.getElementById("acPdf_dropzone").remove();
         }
     }
+}
+
+// helper functions
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function prompt(string, duration, type, selectString) {
@@ -317,3 +627,33 @@ async function extractUniqueDOIs(text) {
     const uniqueDOIs = [...new Set(dois)];
     return uniqueDOIs;
 }
+
+async function createBlocks(blocks, parentUid) {
+    await sleep(50); // brief pause
+    blocks.forEach((node, order) => {
+        createBlock({
+            parentUid,
+            order,
+            node
+        })
+    });
+}
+
+// copied and adapted from https://github.com/dvargas92495/roamjs-components/blob/main/src/writes/createBlock.ts
+const createBlock = (params) => {
+    const uid = window.roamAlphaAPI.util.generateUID();
+    return Promise.all([
+        window.roamAlphaAPI.createBlock({
+            location: {
+                "parent-uid": params.parentUid,
+                order: params.order,
+            },
+            block: {
+                uid,
+                string: params.node.text
+            }
+        })
+    ].concat((params.node.children || []).map((node, order) =>
+        createBlock({ parentUid: uid, order, node })
+    )))
+};
